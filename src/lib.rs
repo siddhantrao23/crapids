@@ -33,8 +33,8 @@ impl<Payload> Message<Payload> {
     where
         Payload: Serialize,
     {
-        serde_json::to_writer(&mut *output, self).context("Serialize response message")?;
-        output.write_all(b"\n").context("Write trailing newline")?;
+        serde_json::to_writer(&mut *output, self).context("Serialize response message.")?;
+        output.write_all(b"\n").context("Write trailing newline.")?;
         Ok(())
     }
 }
@@ -88,7 +88,7 @@ where
     .context("Init message could not be deserialized.")?;
 
     let InitPayload::Init(init) = init_msg.body.payload else {
-        panic!("First message should be init");
+        panic!("First message should be init.");
     };
     let mut node: N = Node::from_init(init_state, init).context("Node initialization failed.")?;
 
@@ -105,7 +105,7 @@ where
     reply.send(&mut stdout)?;
 
     for line in stdin {
-        let line = line.context("Maelstrom input from STDIN could not be read")?;
+        let line = line.context("Maelstrom input from STDIN could not be read.")?;
         let input = serde_json::from_str(&line)
             .context("Maelstrom input from STDIN could not be deserialized.")?;
         node.step(input, &mut stdout)

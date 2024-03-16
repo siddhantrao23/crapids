@@ -36,10 +36,10 @@ impl Node<(), GeneratePayload> for GenerateNode {
         input: Message<GeneratePayload>,
         output: &mut StdoutLock,
     ) -> anyhow::Result<()> {
-        match input.body.payload {
+        let mut reply = input.into_reply(Some(&mut self.id));
+        match reply.body.payload {
             GeneratePayload::Generate => {
                 let guid = format!("{}-{}", self.node, self.id);
-                let mut reply = input.into_reply(Some(&mut self.id));
                 reply.body.payload = GeneratePayload::GenerateOk { guid };
                 reply.send(output).context("Send response to generate.")?;
             }
