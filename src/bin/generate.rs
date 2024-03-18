@@ -21,7 +21,11 @@ struct GenerateNode {
 }
 
 impl Node<(), GeneratePayload> for GenerateNode {
-    fn from_init(_state: (), init: Init) -> anyhow::Result<Self>
+    fn from_init(
+        _state: (),
+        init: Init,
+        _tx: std::sync::mpsc::Sender<Event<GeneratePayload>>,
+    ) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
@@ -33,9 +37,12 @@ impl Node<(), GeneratePayload> for GenerateNode {
 
     fn step(
         &mut self,
-        input: Message<GeneratePayload>,
+        input: Event<GeneratePayload>,
         output: &mut StdoutLock,
     ) -> anyhow::Result<()> {
+        let Event::Message(input) = input else {
+            panic!("Got injected event when there should be none.");
+        };
         let mut reply = input.into_reply(Some(&mut self.id));
         match reply.body.payload {
             GeneratePayload::Generate => {

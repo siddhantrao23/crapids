@@ -17,14 +17,21 @@ struct EchoNode {
 }
 
 impl Node<(), EchoPayload> for EchoNode {
-    fn from_init(_state: (), _init: Init) -> anyhow::Result<Self>
+    fn from_init(
+        _state: (),
+        _init: Init,
+        _tx: std::sync::mpsc::Sender<Event<EchoPayload>>,
+    ) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
         Ok(EchoNode { id: 1 })
     }
 
-    fn step(&mut self, input: Message<EchoPayload>, output: &mut StdoutLock) -> anyhow::Result<()> {
+    fn step(&mut self, input: Event<EchoPayload>, output: &mut StdoutLock) -> anyhow::Result<()> {
+        let Event::Message(input) = input else {
+            panic!("Got injected event when there should be none.");
+        };
         let mut reply = input.into_reply(Some(&mut self.id));
         match reply.body.payload {
             EchoPayload::Echo { echo } => {
