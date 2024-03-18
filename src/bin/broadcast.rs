@@ -2,7 +2,11 @@ use crapids::*;
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, io::StdoutLock};
+use std::{
+    collections::{HashMap, HashSet},
+    io::StdoutLock,
+    time::Duration,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -14,55 +18,113 @@ enum BroadcastPayload {
     BroadcastOk,
     Read,
     ReadOk {
-        messages: Vec<usize>,
+        messages: HashSet<usize>,
     },
     Topology {
         topology: HashMap<String, Vec<String>>,
     },
     TopologyOk,
+    Gossip {
+        seen: HashSet<usize>,
+    },
 }
 
 struct BroadcastNode {
     id: usize,
-    messages: Vec<usize>,
+    node: String,
+    messages: HashSet<usize>,
+    neighbours: Vec<String>,
+    known: HashMap<String, HashSet<usize>>,
 }
 
 impl Node<(), BroadcastPayload> for BroadcastNode {
-    fn from_init(_state: (), _init: Init) -> anyhow::Result<Self>
+    fn from_init(
+        _state: (),
+        init: Init,
+        tx: std::sync::mpsc::Sender<Event<BroadcastPayload>>,
+    ) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
+        std::thread::spawn(move || loop {
+            std::thread::sleep(Duration::from_millis(300));
+            if let Err(_) = tx.send(Event::Inject()) {
+                break;
+            }
+        });
+
         Ok(BroadcastNode {
             id: 1,
-            messages: Vec::new(),
+            node: init.node_id,
+            messages: HashSet::new(),
+            neighbours: Vec::new(),
+            known: init
+                .node_ids
+                .into_iter()
+                .map(|nid| (nid, HashSet::new()))
+                .collect(),
         })
     }
 
     fn step(
         &mut self,
-        input: Message<BroadcastPayload>,
+        input: Event<BroadcastPayload>,
         output: &mut StdoutLock,
     ) -> anyhow::Result<()> {
-        let mut reply = input.into_reply(Some(&mut self.id));
-        match reply.body.payload {
-            BroadcastPayload::Broadcast { message } => {
-                self.messages.push(message);
-                reply.body.payload = BroadcastPayload::BroadcastOk {};
-                reply.send(output).context("Send response to Broadcast.")?;
+        match input {
+            Event::Message(input) => {
+                let mut reply = input.into_reply(Some(&mut self.id));
+                match reply.body.payload {
+                    BroadcastPayload::Broadcast { message } => {
+                        self.messages.insert(message);
+                        reply.body.payload = BroadcastPayload::BroadcastOk {};
+                        reply.send(output).context("Send response to Broadcast.")?;
+                    }
+                    BroadcastPayload::BroadcastOk { .. } => {}
+                    BroadcastPayload::Read => {
+                        reply.body.payload = BroadcastPayload::ReadOk {
+                            messages: self.messages.clone(),
+                        };
+                        reply.send(output).context("Send response to Read.")?;
+                    }
+                    BroadcastPayload::ReadOk { .. } => {}
+                    BroadcastPayload::Topology { mut topology } => {
+                        self.neighbours = topology.remove(&self.node).unwrap_or_else(|| {
+                            panic!("No topology provided for node {}", self.node)
+                        });
+                        reply.body.payload = BroadcastPayload::TopologyOk {};
+                        reply.send(output).context("Send response to Topology.")?;
+                    }
+                    BroadcastPayload::TopologyOk => {}
+                    BroadcastPayload::Gossip { seen } => {
+                        self.messages.extend(seen);
+                    }
+                }
             }
-            BroadcastPayload::BroadcastOk { .. } => {}
-            BroadcastPayload::Read => {
-                reply.body.payload = BroadcastPayload::ReadOk {
-                    messages: self.messages.clone(),
-                };
-                reply.send(output).context("Send response to Read.")?;
+            Event::Inject() => {
+                for neighbour in &self.neighbours {
+                    let neighbour_knows = &self.known[neighbour];
+                    Message {
+                        src: self.node.clone(),
+                        dst: neighbour.clone(),
+                        body: Body {
+                            id: None,
+                            in_reply_to: None,
+                            payload: BroadcastPayload::Gossip {
+                                seen: self
+                                    .messages
+                                    .iter()
+                                    .copied()
+                                    .filter(|m| !neighbour_knows.contains(m))
+                                    .collect(),
+                            },
+                        },
+                    }
+                    .send(output)
+                    .context(format!("Send response to node {}", neighbour))?;
+                }
             }
-            BroadcastPayload::ReadOk { .. } => {}
-            BroadcastPayload::Topology { .. } => {
-                reply.body.payload = BroadcastPayload::TopologyOk {};
-                reply.send(output).context("Send response to Topology.")?;
-            }
-            BroadcastPayload::TopologyOk => {}
+            Event::EOF() => {}
         }
         Ok(())
     }
