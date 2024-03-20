@@ -1,3 +1,5 @@
+// does not work because total order is not maintained
+
 use anyhow::{anyhow, Context};
 use crapids::*;
 
