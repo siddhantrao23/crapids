@@ -1,4 +1,4 @@
-// taken from https://github.com/jonhoo/rustengan as starter code
+// inspired from https://github.com/jonhoo/rustengan as starter code
 
 use anyhow::Context;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
