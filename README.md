@@ -1,4 +1,4 @@
-# dinghy
+# crapids
 
 Challenges done as a part of the [Fly.io Distributed Systems Challenge](https://fly.io/dist-sys). 
 
