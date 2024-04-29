@@ -1,11 +1,11 @@
 # dinghy
 
-Challenges done as a part of the ![https://fly.io/dist-sys/](Fly.io Distributed Systems Challenge). 
+Challenges done as a part of the [Fly.io Distributed Systems Challenge](https://fly.io/dist-sys). 
 
-First Implementation inspired by Jon Gjengset but fell short due to certain limitations
+The first Implementation was inspired by Jon Gjengset but fell short due to certain limitations
 - required writing the library code to bridge to maelstorm
-- using pre written async libs seemed filled with errors
-- using go with the intentioned library from the authors is the best way to go
+- using pre-written async libs seemed filled with errors
+- using go with the intended library from the authors is the best way to go
 
 The first 3 challenges are successful in Rust.
 
